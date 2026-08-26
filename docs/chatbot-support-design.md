@@ -18,6 +18,10 @@ como feature flag (hoy comentado en `kubernetes-manifests/frontend.yaml`).
 pero con una arquitectura propia: portable, sin dependencias de GCP, con persistencia local (SQLite) y capaz
 de responder con datos reales de la tienda vía gRPC.
 
+> Historial cross-device y panel de monitoreo requieren usuarios reales, no solo sesiones anónimas — ver el
+> epic [#12 Autenticación y cuentas de usuario](https://github.com/JaobSandoval/online-boutique/issues/12)
+> y [`docs/auth-accounts-design.md`](./auth-accounts-design.md).
+
 ## 2. Alcance funcional
 
 - Búsqueda de productos en lenguaje natural ("busco algo para acampar") contra `productcatalogservice`
@@ -88,7 +92,7 @@ erDiagram
 
     SESSIONS {
         string session_id PK
-        string user_id "nullable, anónimo si null"
+        string user_id FK "nullable: null = invitado, poblado = usuario autenticado (ver docs/auth-accounts-design.md)"
         string channel "web, ej. futuro: whatsapp"
         datetime created_at
     }
