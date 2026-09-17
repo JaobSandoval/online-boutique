@@ -6,7 +6,6 @@ on:
     branches:
       - feature/aws-cicd
 
-
 env:
   AWS_REGION: us-east-1
   ECR_REGISTRY: 047776567953.dkr.ecr.us-east-1.amazonaws.com
@@ -15,20 +14,33 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        service:
-          - adservice
-          - cartservice
-          - checkoutservice
-          - currencyservice
-          - emailservice
-          - frontend
-          - paymentservice
-          - productcatalogservice
-          - recommendationservice
-          - shippingservice
-          - shoppingassistantservice
-          - loadgenerator
+        include:
+          - service: adservice
+            context: ./src/adservice
+          - service: cartservice
+            context: ./src/cartservice/src
+          - service: checkoutservice
+            context: ./src/checkoutservice
+          - service: currencyservice
+            context: ./src/currencyservice
+          - service: emailservice
+            context: ./src/emailservice
+          - service: frontend
+            context: ./src/frontend
+          - service: paymentservice
+            context: ./src/paymentservice
+          - service: productcatalogservice
+            context: ./src/productcatalogservice
+          - service: recommendationservice
+            context: ./src/recommendationservice
+          - service: shippingservice
+            context: ./src/shippingservice
+          - service: shoppingassistantservice
+            context: ./src/shoppingassistantservice
+          - service: loadgenerator
+            context: ./src/loadgenerator
 
     steps:
       - name: Checkout code
@@ -48,7 +60,7 @@ jobs:
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
-          context: ./src/${{ matrix.service }}
+          context: ${{ matrix.context }}
           push: true
           tags: |
             ${{ env.ECR_REGISTRY }}/online-boutique/${{ matrix.service }}:latest
