@@ -2,6 +2,10 @@ name: CI - Build and Push Docker Images
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/aws-cicd
+
 
 env:
   AWS_REGION: us-east-1
