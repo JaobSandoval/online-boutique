@@ -169,6 +169,7 @@ func main() {
 
 	api := r.PathPrefix(baseUrl + "/api/v1").Subrouter()
 	api.Use(corsMiddleware(svc.corsOrigin))
+	api.Use(requireAuthMiddleware(svc))
 	api.HandleFunc("/products", svc.apiListProducts).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/products/{id}", svc.apiGetProduct).Methods(http.MethodGet, http.MethodOptions)
 	api.HandleFunc("/recommendations", svc.apiRecommendations).Methods(http.MethodGet, http.MethodOptions)

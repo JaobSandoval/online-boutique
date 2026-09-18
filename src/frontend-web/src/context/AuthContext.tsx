@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { fetchProfile, login as apiLogin, logout as apiLogout, register as apiRegister } from '../api/accountClient'
+import { onSessionExpired } from '../api/authEvents'
 import { tokenStore } from '../api/tokenStore'
 import type { User } from '../api/types'
 
@@ -27,6 +28,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => tokenStore.clear())
       .finally(() => setLoading(false))
   }, [])
+
+  // Fires when a background token refresh fails (refresh token expired or
+  // revoked elsewhere) — without this, `user` would stay populated while
+  // every API call silently 401s until the next full page reload.
+  useEffect(() => onSessionExpired(() => setUser(null)), [])
 
   const login = useCallback(async (email: string, password: string) => {
     await apiLogin(email, password)

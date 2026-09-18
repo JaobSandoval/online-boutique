@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { addToCart as apiAddToCart, emptyCart as apiEmptyCart, getCart } from '../api/storeClient'
+import { useAuth } from './AuthContext'
 import type { CartItem } from '../api/types'
 
 interface CartContextValue {
@@ -13,11 +14,18 @@ interface CartContextValue {
 const CartContext = createContext<CartContextValue | undefined>(undefined)
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth()
   const [items, setItems] = useState<CartItem[]>([])
 
+  // Cart is now a logged-in-only feature (the API itself requires a valid
+  // JWT), so there is no anonymous cart to fetch before login.
   const refresh = useCallback(async () => {
+    if (!user) {
+      setItems([])
+      return
+    }
     setItems(await getCart())
-  }, [])
+  }, [user])
 
   useEffect(() => {
     refresh().catch(() => undefined)

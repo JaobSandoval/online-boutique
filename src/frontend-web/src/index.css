@@ -162,6 +162,50 @@ input {
   margin-top: 1.5rem;
 }
 
+.welcome {
+  max-width: 640px;
+  margin: 3rem auto;
+  text-align: center;
+}
+
+.welcome h1 {
+  font-size: 2.2rem;
+  margin-bottom: 0.75rem;
+}
+
+.welcome p {
+  color: #555;
+  font-size: 1.05rem;
+  line-height: 1.5;
+}
+
+.welcome-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin: 2rem 0;
+}
+
+.welcome-actions .secondary {
+  background: white;
+  color: var(--brand);
+  border: 1px solid var(--brand);
+}
+
+.welcome-highlights {
+  list-style: none;
+  padding: 0;
+  margin-top: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  text-align: left;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+}
+
 .auth-form,
 .checkout-form {
   max-width: 420px;

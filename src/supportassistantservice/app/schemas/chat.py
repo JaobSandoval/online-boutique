@@ -20,3 +20,7 @@ class MessageOut(BaseModel):
 class HistoryResponse(BaseModel):
     session_id: str
     messages: list[MessageOut]
+
+
+class SessionResponse(BaseModel):
+    session_id: str

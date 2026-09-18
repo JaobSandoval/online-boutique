@@ -1,32 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
-import { getChatHistory, sendChatMessage } from '../api/supportClient'
+import { getChatHistory, getOrCreateSession, sendChatMessage } from '../api/supportClient'
 import type { ChatMessage } from '../api/types'
-
-const SESSION_STORAGE_KEY = 'ob_chat_session_id'
-
-function getOrCreateSessionId(): string {
-  let sessionId = localStorage.getItem(SESSION_STORAGE_KEY)
-  if (!sessionId) {
-    sessionId = crypto.randomUUID()
-    localStorage.setItem(SESSION_STORAGE_KEY, sessionId)
-  }
-  return sessionId
-}
 
 export function ChatWidget() {
   const [open, setOpen] = useState(false)
+  const [sessionId, setSessionId] = useState<string | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
-  const sessionId = useRef(getOrCreateSessionId())
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!open) return
-    getChatHistory(sessionId.current)
-      .then(setMessages)
+    if (!open || sessionId) return
+    getOrCreateSession()
+      .then(async (id) => {
+        setSessionId(id)
+        setMessages(await getChatHistory(id))
+      })
       .catch(() => undefined)
-  }, [open])
+  }, [open, sessionId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -34,12 +26,12 @@ export function ChatWidget() {
 
   async function handleSend() {
     const text = input.trim()
-    if (!text || sending) return
+    if (!text || sending || !sessionId) return
     setInput('')
     setMessages((prev) => [...prev, { senderRole: 'user', content: text, createdAt: new Date().toISOString() }])
     setSending(true)
     try {
-      const reply = await sendChatMessage(sessionId.current, text)
+      const reply = await sendChatMessage(sessionId, text)
       setMessages((prev) => [...prev, { senderRole: 'bot', content: reply, createdAt: new Date().toISOString() }])
     } catch {
       setMessages((prev) => [
@@ -74,8 +66,9 @@ export function ChatWidget() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder="Escribe tu pregunta…"
+              disabled={!sessionId}
             />
-            <button onClick={handleSend} disabled={sending}>
+            <button onClick={handleSend} disabled={sending || !sessionId}>
               Enviar
             </button>
           </div>

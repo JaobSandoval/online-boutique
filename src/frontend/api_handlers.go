@@ -79,6 +79,32 @@ func writeAPIError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
 }
 
+// requireAuthMiddleware makes login mandatory for the whole store: every
+// /api/v1 route requires a valid access token, so a guest can't reach the
+// catalog, cart, or checkout by calling the API directly even if they
+// bypass the React route guard.
+func requireAuthMiddleware(fe *frontendServer) mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodOptions {
+				next.ServeHTTP(w, r)
+				return
+			}
+			authHeader := r.Header.Get("Authorization")
+			token := strings.TrimPrefix(authHeader, "Bearer ")
+			if token == authHeader || fe.jwtSecret == "" {
+				writeAPIError(w, http.StatusUnauthorized, "authentication required")
+				return
+			}
+			if _, err := verifyJWT(token, fe.jwtSecret); err != nil {
+				writeAPIError(w, http.StatusUnauthorized, "invalid or expired token")
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func corsMiddleware(allowedOrigin string) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

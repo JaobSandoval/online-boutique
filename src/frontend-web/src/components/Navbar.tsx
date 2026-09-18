@@ -18,9 +18,9 @@ export function Navbar() {
         Online Boutique
       </Link>
       <div className="navbar-links">
-        <Link to="/cart">Carrito ({itemCount})</Link>
         {user ? (
           <>
+            <Link to="/cart">Carrito ({itemCount})</Link>
             <span className="navbar-user">Hola, {user.displayName}</span>
             <button onClick={handleLogout}>Cerrar sesión</button>
           </>

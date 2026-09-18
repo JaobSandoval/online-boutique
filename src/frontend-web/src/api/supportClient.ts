@@ -1,18 +1,19 @@
 import axios from 'axios'
-import { tokenStore } from './tokenStore'
+import { attachAuthInterceptors } from './authRefresh'
 import type { ChatMessage } from './types'
 
 const baseURL = import.meta.env.VITE_SUPPORT_API_BASE_URL
 
 export const supportClient = axios.create({ baseURL })
+attachAuthInterceptors(supportClient)
 
-supportClient.interceptors.request.use((config) => {
-  const token = tokenStore.getAccessToken()
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
+// The backend resolves the session by the authenticated user (see
+// GET /chat/session), so the same conversation follows the account across
+// devices/browsers instead of being pinned to one browser's localStorage.
+export async function getOrCreateSession(): Promise<string> {
+  const { data } = await supportClient.get<{ session_id: string }>('/chat/session')
+  return data.session_id
+}
 
 export async function sendChatMessage(sessionId: string, message: string): Promise<string> {
   const { data } = await supportClient.post<{ session_id: string; content: string }>('/chat', {

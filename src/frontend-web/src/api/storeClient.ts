@@ -1,21 +1,11 @@
 import axios from 'axios'
-import { tokenStore } from './tokenStore'
+import { attachAuthInterceptors } from './authRefresh'
 import type { CartItem, Product } from './types'
 
 const baseURL = import.meta.env.VITE_STORE_API_BASE_URL
 
-// withCredentials so the anonymous shop_session-id cookie (set by the Go
-// frontend's ensureSessionID middleware) flows through, keeping guest carts
-// working exactly as they did before this API existed.
 export const storeClient = axios.create({ baseURL, withCredentials: true })
-
-storeClient.interceptors.request.use((config) => {
-  const token = tokenStore.getAccessToken()
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
+attachAuthInterceptors(storeClient)
 
 export async function listProducts(): Promise<Product[]> {
   const { data } = await storeClient.get<Product[]>('/products')

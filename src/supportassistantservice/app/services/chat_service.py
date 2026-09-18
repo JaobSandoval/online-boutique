@@ -1,5 +1,6 @@
 import json
 
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.clients.cart_client import CartClient
@@ -10,7 +11,7 @@ from app.models.message import Message
 from app.repositories.conversation_repository import ConversationRepository
 from app.repositories.faq_repository import FaqRepository
 from app.repositories.product_query_repository import ProductQueryRepository
-from app.repositories.session_repository import SessionRepository
+from app.repositories.session_repository import SessionOwnershipError, SessionRepository
 from app.repositories.ticket_repository import TicketRepository
 from app.services.intent_service import IntentService
 
@@ -33,7 +34,10 @@ class ChatService:
         self.openai = openai_client or OpenAIClient()
 
     def handle_message(self, session_id: str, user_id: str | None, text: str) -> dict:
-        session = self.sessions.get_or_create(session_id, user_id)
+        try:
+            session = self.sessions.get_or_create(session_id, user_id)
+        except SessionOwnershipError:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "This session belongs to a different user")
         conversation = self.conversations.get_or_create_open(session.session_id)
 
         self.conversations.add_message(
