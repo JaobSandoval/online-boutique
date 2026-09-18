@@ -312,3 +312,99 @@ input {
 .chat-input button {
   border-radius: 0;
 }
+
+.admin-page h2 {
+  margin-top: 2.5rem;
+}
+
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.admin-stat-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.admin-stat-card strong {
+  font-size: 1.8rem;
+  color: var(--brand);
+}
+
+.admin-stat-card span {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.admin-table th,
+.admin-table td {
+  text-align: left;
+  padding: 0.65rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.admin-table th {
+  background: var(--bg);
+}
+
+.admin-conversations {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-conversation {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.admin-conversation-header {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 2fr auto auto;
+  gap: 1rem;
+  align-items: center;
+  background: white;
+  color: var(--text);
+  border: none;
+  border-radius: 0;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.admin-conversation-preview {
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-conversation-messages {
+  padding: 1rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: var(--bg);
+}

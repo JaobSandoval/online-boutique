@@ -16,3 +16,11 @@ export function GuestOnly() {
   if (user) return <Navigate to="/" replace />
   return <Outlet />
 }
+
+export function RequireRole({ roles }: { roles: string[] }) {
+  const { user, loading } = useAuth()
+  if (loading) return <p className="status-message">Cargando…</p>
+  if (!user) return <Navigate to="/" replace />
+  if (!user.roles.some((r) => roles.includes(r))) return <Navigate to="/" replace />
+  return <Outlet />
+}

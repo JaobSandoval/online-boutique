@@ -8,7 +8,7 @@ from app.db.base import Base
 from app.db.session import SessionLocal, engine
 from app.repositories.faq_repository import FaqRepository
 from app.repositories.intent_repository import IntentRepository
-from app.routers import chat_router
+from app.routers import admin_router, chat_router
 
 
 @asynccontextmanager
@@ -34,6 +34,7 @@ app.add_middleware(
 )
 
 app.include_router(chat_router.router)
+app.include_router(admin_router.router)
 
 
 @app.get("/healthz")

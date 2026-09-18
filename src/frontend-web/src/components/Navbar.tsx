@@ -21,6 +21,9 @@ export function Navbar() {
         {user ? (
           <>
             <Link to="/cart">Carrito ({itemCount})</Link>
+            {(user.roles.includes('admin') || user.roles.includes('support_agent')) && (
+              <Link to="/admin">Panel de soporte</Link>
+            )}
             <span className="navbar-user">Hola, {user.displayName}</span>
             <button onClick={handleLogout}>Cerrar sesión</button>
           </>

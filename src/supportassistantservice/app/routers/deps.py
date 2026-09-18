@@ -36,3 +36,20 @@ def get_current_user_id(
     if payload is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required")
     return payload["sub"]
+
+
+def require_roles(*allowed_roles: str):
+    """Dependency factory for the monitoring panel: accountservice puts the
+    user's roles directly in the JWT, so this checks them locally instead of
+    calling back to accountservice on every request."""
+
+    def dependency(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)) -> str:
+        payload = _decode(credentials)
+        if payload is None:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required")
+        roles = payload.get("roles", [])
+        if not set(roles) & set(allowed_roles):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Insufficient role")
+        return payload["sub"]
+
+    return dependency
