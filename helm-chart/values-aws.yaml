@@ -1,0 +1,14 @@
+# images.repository is intentionally NOT set here anymore: the AWS Academy
+# account id changes every lab session, so hardcoding it here would need a
+# manual edit each time. The CI workflow now resolves the live ECR registry
+# at deploy time (via the ecr-login action) and passes it with
+# `--set images.repository=<account>.dkr.ecr.<region>.amazonaws.com/online-boutique`.
+# jwtSecret and openai.apiKey are likewise passed via --set from GitHub
+# secrets in the deploy job, never committed here.
+
+frontend:
+  platform: aws
+  externalService: false   # evita crear un LoadBalancer nuevo (el mismo bug #6 que ya resolviste); seguimos con kubectl port-forward
+
+frontendWeb:
+  externalService: false   # mismo motivo que frontend.externalService — usar kubectl port-forward

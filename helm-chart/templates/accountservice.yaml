@@ -1,0 +1,108 @@
+# Added alongside accountservice/supportassistantservice/frontend-web (the
+# auth + chatbot work) — not part of the original Google chart, so this
+# intentionally skips the NetworkPolicy/Sidecar/AuthorizationPolicy blocks
+# the Istio-oriented templates carry: those are always gated behind flags
+# that default to false and aren't relevant to a plain EKS cluster.
+{{- if .Values.accountService.create }}
+{{- if .Values.serviceAccounts.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.accountService.name }}
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.serviceAccounts.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.accountService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.accountService.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.accountService.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.accountService.name }}
+    spec:
+      {{- if .Values.serviceAccounts.create }}
+      serviceAccountName: {{ .Values.accountService.name }}
+      {{- else }}
+      serviceAccountName: default
+      {{- end }}
+      terminationGracePeriodSeconds: 5
+      {{- if .Values.securityContext.enable }}
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        {{- if .Values.seccompProfile.enable }}
+        seccompProfile:
+          type: {{ .Values.seccompProfile.type }}
+        {{- end }}
+      {{- end }}
+      containers:
+      - name: server
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        image: {{ .Values.images.repository }}/{{ .Values.accountService.name }}:{{ .Values.images.tag | default .Chart.AppVersion }}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DATABASE_URL
+          value: "sqlite:////data/accounts.db"
+        - name: JWT_SECRET
+          value: {{ .Values.jwtSecret | quote }}
+        - name: CORS_ORIGINS
+          value: {{ .Values.frontendWeb.corsOrigin | default "*" | quote }}
+        # SQLite lives on an emptyDir: it survives pod restarts fine but is
+        # lost on reschedule/redeploy. Fine for a lab; real persistence would
+        # need the EBS CSI driver + a PVC, which isn't set up here.
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        readinessProbe:
+          initialDelaySeconds: 5
+          httpGet:
+            path: /healthz
+            port: 8080
+        livenessProbe:
+          initialDelaySeconds: 5
+          httpGet:
+            path: /healthz
+            port: 8080
+        resources:
+          {{- toYaml .Values.accountService.resources | nindent 10 }}
+      volumes:
+      - name: data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.accountService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.accountService.name }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Values.accountService.name }}
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+{{- end }}

@@ -77,7 +77,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: loadgenerator
+        image: 047776567953.dkr.ecr.us-east-1.amazonaws.com/online-boutique/loadgenerator:latest
         env:
         - name: FRONTEND_ADDR
           value: "frontend:80"

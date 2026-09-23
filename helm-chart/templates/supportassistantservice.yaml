@@ -1,0 +1,111 @@
+{{- if .Values.supportAssistantService.create }}
+{{- if .Values.serviceAccounts.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.supportAssistantService.name }}
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.serviceAccounts.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.supportAssistantService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.supportAssistantService.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.supportAssistantService.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.supportAssistantService.name }}
+    spec:
+      {{- if .Values.serviceAccounts.create }}
+      serviceAccountName: {{ .Values.supportAssistantService.name }}
+      {{- else }}
+      serviceAccountName: default
+      {{- end }}
+      terminationGracePeriodSeconds: 5
+      {{- if .Values.securityContext.enable }}
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        {{- if .Values.seccompProfile.enable }}
+        seccompProfile:
+          type: {{ .Values.seccompProfile.type }}
+        {{- end }}
+      {{- end }}
+      containers:
+      - name: server
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          privileged: false
+          readOnlyRootFilesystem: true
+        image: {{ .Values.images.repository }}/{{ .Values.supportAssistantService.name }}:{{ .Values.images.tag | default .Chart.AppVersion }}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DATABASE_URL
+          value: "sqlite:////data/chatbot.db"
+        - name: JWT_SECRET
+          value: {{ .Values.jwtSecret | quote }}
+        - name: PRODUCT_CATALOG_SERVICE_ADDR
+          value: "{{ .Values.productCatalogService.name }}:3550"
+        - name: RECOMMENDATION_SERVICE_ADDR
+          value: "{{ .Values.recommendationService.name }}:8080"
+        - name: CART_SERVICE_ADDR
+          value: "{{ .Values.cartService.name }}:7070"
+        - name: OPENAI_API_KEY
+          value: {{ .Values.openai.apiKey | quote }}
+        - name: OPENAI_MODEL
+          value: {{ .Values.openai.model | quote }}
+        - name: CORS_ORIGINS
+          value: {{ .Values.frontendWeb.corsOrigin | default "*" | quote }}
+        # Same ephemeral-storage caveat as accountservice: emptyDir, not a PVC.
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        readinessProbe:
+          initialDelaySeconds: 5
+          httpGet:
+            path: /healthz
+            port: 8080
+        livenessProbe:
+          initialDelaySeconds: 5
+          httpGet:
+            path: /healthz
+            port: 8080
+        resources:
+          {{- toYaml .Values.supportAssistantService.resources | nindent 10 }}
+      volumes:
+      - name: data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.supportAssistantService.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Values.supportAssistantService.name }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Values.supportAssistantService.name }}
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+{{- end }}

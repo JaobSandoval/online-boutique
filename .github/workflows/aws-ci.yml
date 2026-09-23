@@ -1,0 +1,121 @@
+name: CI - Build and Push Docker Images
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/aws-cicd
+      - main
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: adservice
+            context: ./src/adservice
+          - service: cartservice
+            context: ./src/cartservice/src
+          - service: checkoutservice
+            context: ./src/checkoutservice
+          - service: currencyservice
+            context: ./src/currencyservice
+          - service: emailservice
+            context: ./src/emailservice
+          - service: frontend
+            context: ./src/frontend
+          - service: paymentservice
+            context: ./src/paymentservice
+          - service: productcatalogservice
+            context: ./src/productcatalogservice
+          - service: recommendationservice
+            context: ./src/recommendationservice
+          - service: shippingservice
+            context: ./src/shippingservice
+          - service: loadgenerator
+            context: ./src/loadgenerator
+          # shoppingassistantservice (Google's GCP-coupled assistant) is gone:
+          # replaced by accountservice + supportassistantservice below.
+          - service: accountservice
+            context: ./src/accountservice
+          - service: supportassistantservice
+            context: ./src/supportassistantservice
+          - service: frontend-web
+            context: ./src/frontend-web
+            # Vite bakes these into the JS bundle at build time — they can't
+            # be changed later via env vars/Helm like the other services.
+            # Update once there's a real domain/LB hostname for the API
+            # services; until then this only works via matching
+            # `kubectl port-forward`s to the same local ports.
+            build_args: |
+              VITE_STORE_API_BASE_URL=http://localhost:8080/api/v1
+              VITE_ACCOUNT_API_BASE_URL=http://localhost:8081
+              VITE_SUPPORT_API_BASE_URL=http://localhost:8082
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          build-args: ${{ matrix.build_args }}
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/online-boutique/${{ matrix.service }}:latest
+            ${{ steps.login-ecr.outputs.registry }}/online-boutique/${{ matrix.service }}:${{ github.sha }}
+
+  deploy-cd:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name online-boutique-cluster
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install onlineboutique ./helm-chart \
+            -f helm-chart/values-aws.yaml \
+            --set images.repository=${{ steps.login-ecr.outputs.registry }}/online-boutique \
+            --set images.tag=${{ github.sha }} \
+            --set jwtSecret=${{ secrets.JWT_SECRET }} \
+            --set openai.apiKey=${{ secrets.OPENAI_API_KEY }} \
+            --namespace default \
+            --wait --timeout 5m

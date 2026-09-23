@@ -43,7 +43,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: recommendationservice
+        image: 047776567953.dkr.ecr.us-east-1.amazonaws.com/online-boutique/recommendationservice:latest
         ports:
         - containerPort: 8080
         readinessProbe:
