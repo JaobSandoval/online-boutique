@@ -44,7 +44,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: frontend
+          image: 047776567953.dkr.ecr.us-east-1.amazonaws.com/online-boutique/frontend:latest
           ports:
           - containerPort: 8080
           readinessProbe:

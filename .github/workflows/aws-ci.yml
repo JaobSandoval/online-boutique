@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - feature/aws-cicd
+      - main
 
 env:
   AWS_REGION: us-east-1
@@ -65,3 +66,33 @@ jobs:
           tags: |
             ${{ env.ECR_REGISTRY }}/online-boutique/${{ matrix.service }}:latest
             ${{ env.ECR_REGISTRY }}/online-boutique/${{ matrix.service }}:${{ github.sha }}
+
+  deploy-cd:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name online-boutique-cluster
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install onlineboutique ./helm-chart \
+            -f helm-chart/values-aws.yaml \
+            --set images.tag=${{ github.sha }} \
+            --namespace default \
+            --wait --timeout 5m

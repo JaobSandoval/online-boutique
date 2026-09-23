@@ -43,7 +43,7 @@ spec:
               - ALL
           privileged: false
           readOnlyRootFilesystem: true
-        image: currencyservice
+        image: 047776567953.dkr.ecr.us-east-1.amazonaws.com/online-boutique/currencyservice:latest
         ports:
         - name: grpc
           containerPort: 7000

@@ -1,0 +1,6 @@
+images:
+  repository: 047776567953.dkr.ecr.us-east-1.amazonaws.com/online-boutique
+
+frontend:
+  platform: aws
+  externalService: false   # evita crear un LoadBalancer nuevo (el mismo bug #6 que ya resolviste); seguimos con kubectl port-forward
