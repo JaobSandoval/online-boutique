@@ -86,6 +86,9 @@ type frontendServer struct {
 	collectorConn *grpc.ClientConn
 
 	shoppingAssistantSvcAddr string
+
+	jwtSecret  string
+	corsOrigin string
 }
 
 func main() {
@@ -137,6 +140,8 @@ func main() {
 	mustMapEnv(&svc.shippingSvcAddr, "SHIPPING_SERVICE_ADDR")
 	mustMapEnv(&svc.adSvcAddr, "AD_SERVICE_ADDR")
 	mustMapEnv(&svc.shoppingAssistantSvcAddr, "SHOPPING_ASSISTANT_SERVICE_ADDR")
+	svc.jwtSecret = os.Getenv("JWT_SECRET")
+	svc.corsOrigin = os.Getenv("CORS_ORIGIN")
 
 	mustConnGRPC(ctx, &svc.currencySvcConn, svc.currencySvcAddr)
 	mustConnGRPC(ctx, &svc.productCatalogSvcConn, svc.productCatalogSvcAddr)
@@ -161,6 +166,18 @@ func main() {
 	r.HandleFunc(baseUrl+"/_healthz", func(w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, "ok") })
 	r.HandleFunc(baseUrl+"/product-meta/{ids}", svc.getProductByID).Methods(http.MethodGet)
 	r.HandleFunc(baseUrl+"/bot", svc.chatBotHandler).Methods(http.MethodPost)
+
+	api := r.PathPrefix(baseUrl + "/api/v1").Subrouter()
+	api.Use(corsMiddleware(svc.corsOrigin))
+	api.Use(requireAuthMiddleware(svc))
+	api.HandleFunc("/products", svc.apiListProducts).Methods(http.MethodGet, http.MethodOptions)
+	api.HandleFunc("/products/{id}", svc.apiGetProduct).Methods(http.MethodGet, http.MethodOptions)
+	api.HandleFunc("/recommendations", svc.apiRecommendations).Methods(http.MethodGet, http.MethodOptions)
+	api.HandleFunc("/cart", svc.apiGetCart).Methods(http.MethodGet, http.MethodOptions)
+	api.HandleFunc("/cart", svc.apiAddToCart).Methods(http.MethodPost, http.MethodOptions)
+	api.HandleFunc("/cart/empty", svc.apiEmptyCart).Methods(http.MethodPost, http.MethodOptions)
+	api.HandleFunc("/checkout", svc.apiCheckout).Methods(http.MethodPost, http.MethodOptions)
+	api.HandleFunc("/currencies", svc.apiCurrencies).Methods(http.MethodGet, http.MethodOptions)
 
 	var handler http.Handler = r
 	handler = &logHandler{log: log, next: handler}     // add logging

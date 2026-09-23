@@ -2,7 +2,54 @@
 # Not part of the upstream Google repo — added to support a plain `docker compose up`
 # local dev workflow. Service addresses/ports mirror kubernetes-manifests/*.yaml.
 
+x-jwt-secret: &jwt-secret "local-dev-insecure-secret-change-me"
+
 services:
+  accountservice:
+    build: ./src/accountservice
+    environment:
+      DATABASE_URL: "sqlite:////data/accounts.db"
+      JWT_SECRET: *jwt-secret
+      CORS_ORIGINS: "http://localhost:5173"
+    volumes:
+      - accountservice-data:/data
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+    networks: [boutique]
+
+  supportassistantservice:
+    build: ./src/supportassistantservice
+    environment:
+      DATABASE_URL: "sqlite:////data/chatbot.db"
+      JWT_SECRET: *jwt-secret
+      PRODUCT_CATALOG_SERVICE_ADDR: "productcatalogservice:3550"
+      RECOMMENDATION_SERVICE_ADDR: "recommendationservice:8080"
+      CART_SERVICE_ADDR: "cartservice:7070"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_MODEL: "${OPENAI_MODEL:-gpt-4o-mini}"
+      CORS_ORIGINS: "http://localhost:5173"
+    volumes:
+      - supportassistantservice-data:/data
+    depends_on: [productcatalogservice, recommendationservice, cartservice]
+    ports:
+      - "8082:8080"
+    restart: unless-stopped
+    networks: [boutique]
+
+  frontend-web:
+    build:
+      context: ./src/frontend-web
+      args:
+        VITE_STORE_API_BASE_URL: "http://localhost:8080/api/v1"
+        VITE_ACCOUNT_API_BASE_URL: "http://localhost:8081"
+        VITE_SUPPORT_API_BASE_URL: "http://localhost:8082"
+    depends_on: [frontend, accountservice, supportassistantservice]
+    ports:
+      - "5173:8080"
+    restart: unless-stopped
+    networks: [boutique]
+
   redis-cart:
     image: redis:7-alpine
     restart: unless-stopped
@@ -107,6 +154,8 @@ services:
       AD_SERVICE_ADDR: "adservice:9555"
       SHOPPING_ASSISTANT_SERVICE_ADDR: "shoppingassistantservice:80"
       ENABLE_PROFILER: "0"
+      JWT_SECRET: *jwt-secret
+      CORS_ORIGIN: "http://localhost:5173"
     depends_on:
       - productcatalogservice
       - currencyservice
@@ -133,3 +182,7 @@ services:
 networks:
   boutique:
     driver: bridge
+
+volumes:
+  accountservice-data:
+  supportassistantservice-data:
