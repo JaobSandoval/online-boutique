@@ -9,7 +9,6 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REGISTRY: 047776567953.dkr.ecr.us-east-1.amazonaws.com
 
 jobs:
   build-and-push:
@@ -38,10 +37,25 @@ jobs:
             context: ./src/recommendationservice
           - service: shippingservice
             context: ./src/shippingservice
-          - service: shoppingassistantservice
-            context: ./src/shoppingassistantservice
           - service: loadgenerator
             context: ./src/loadgenerator
+          # shoppingassistantservice (Google's GCP-coupled assistant) is gone:
+          # replaced by accountservice + supportassistantservice below.
+          - service: accountservice
+            context: ./src/accountservice
+          - service: supportassistantservice
+            context: ./src/supportassistantservice
+          - service: frontend-web
+            context: ./src/frontend-web
+            # Vite bakes these into the JS bundle at build time — they can't
+            # be changed later via env vars/Helm like the other services.
+            # Update once there's a real domain/LB hostname for the API
+            # services; until then this only works via matching
+            # `kubectl port-forward`s to the same local ports.
+            build_args: |
+              VITE_STORE_API_BASE_URL=http://localhost:8080/api/v1
+              VITE_ACCOUNT_API_BASE_URL=http://localhost:8081
+              VITE_SUPPORT_API_BASE_URL=http://localhost:8082
 
     steps:
       - name: Checkout code
@@ -56,6 +70,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and push image
@@ -63,9 +78,10 @@ jobs:
         with:
           context: ${{ matrix.context }}
           push: true
+          build-args: ${{ matrix.build_args }}
           tags: |
-            ${{ env.ECR_REGISTRY }}/online-boutique/${{ matrix.service }}:latest
-            ${{ env.ECR_REGISTRY }}/online-boutique/${{ matrix.service }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/online-boutique/${{ matrix.service }}:latest
+            ${{ steps.login-ecr.outputs.registry }}/online-boutique/${{ matrix.service }}:${{ github.sha }}
 
   deploy-cd:
     needs: build-and-push
@@ -83,6 +99,10 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
       - name: Update kubeconfig
         run: aws eks update-kubeconfig --region ${{ env.AWS_REGION }} --name online-boutique-cluster
 
@@ -93,6 +113,9 @@ jobs:
         run: |
           helm upgrade --install onlineboutique ./helm-chart \
             -f helm-chart/values-aws.yaml \
+            --set images.repository=${{ steps.login-ecr.outputs.registry }}/online-boutique \
             --set images.tag=${{ github.sha }} \
+            --set jwtSecret=${{ secrets.JWT_SECRET }} \
+            --set openai.apiKey=${{ secrets.OPENAI_API_KEY }} \
             --namespace default \
             --wait --timeout 5m

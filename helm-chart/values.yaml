@@ -21,6 +21,22 @@ images:
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
+# Shared HS256 signing secret for accountservice/supportassistantservice/frontend
+# (each validates JWTs locally, no calls back to accountservice per request).
+# The default only works for local `helm install` smoke tests — override with
+# --set jwtSecret=... (from a CI secret, never committed) for any real deployment.
+# NOTE: leaving this at its default (or empty) makes the Go frontend's
+# requireAuthMiddleware reject every single request with 401, since an empty
+# secret can never verify a token — the store will look completely broken.
+jwtSecret: "dev-insecure-secret-change-me"
+
+# supportassistantservice's OpenAI agent. apiKey defaults to empty on purpose:
+# never commit a real key here, pass it with --set openai.apiKey=... from a
+# CI secret or a local, gitignored values file.
+openai:
+  apiKey: ""
+  model: "gpt-4o-mini"
+
 serviceAccounts:
   # Specifies whether service accounts should be created.
   create: true
@@ -137,6 +153,47 @@ frontend:
       memory: 64Mi
     limits:
       cpu: 200m
+      memory: 128Mi
+
+accountService:
+  create: true
+  name: accountservice
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+supportAssistantService:
+  create: true
+  name: supportassistantservice
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+frontendWeb:
+  create: true
+  name: frontend-web
+  # Same reasoning as frontend.externalService: an AWS Academy LabRole often
+  # can't (or shouldn't) provision a real LoadBalancer, so this stays off by
+  # default on AWS and the service is reached via `kubectl port-forward`.
+  externalService: true
+  # Origin the React app is actually served from, for the Go frontend's CORS
+  # middleware. Empty means "allow any origin" (the Go code's own default) —
+  # fine for a lab, but should be set once there's a real domain/LB hostname.
+  corsOrigin: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
       memory: 128Mi
 
 loadGenerator:

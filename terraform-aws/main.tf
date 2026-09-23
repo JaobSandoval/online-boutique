@@ -1,7 +1,13 @@
+locals {
+  # AWS Academy always names the sandbox role "LabRole"; only the account id
+  # in front of it changes between lab sessions, so that's the only part
+  # pulled dynamically.
+  lab_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/LabRole"
+}
+
 resource "aws_eks_cluster" "main" {
   name     = "online-boutique-cluster"
-  role_arn = "arn:aws:iam::047776567953:role/LabRole"
-  
+  role_arn = local.lab_role_arn
 
   vpc_config {
     subnet_ids = data.aws_subnets.default.ids
@@ -11,7 +17,7 @@ resource "aws_eks_cluster" "main" {
 resource "aws_eks_node_group" "main" {
   cluster_name    = aws_eks_cluster.main.name
   node_group_name = "online-boutique-nodes"
-  node_role_arn   = "arn:aws:iam::047776567953:role/LabRole"
+  node_role_arn   = local.lab_role_arn
   subnet_ids      = data.aws_subnets.default.ids
 
   scaling_config {
