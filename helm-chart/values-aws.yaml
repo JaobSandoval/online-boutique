@@ -11,4 +11,8 @@ frontend:
   externalService: false   # evita crear un LoadBalancer nuevo (el mismo bug #6 que ya resolviste); seguimos con kubectl port-forward
 
 frontendWeb:
-  externalService: false   # mismo motivo que frontend.externalService — usar kubectl port-forward
+  # true: crea UN Load Balancer publico (Service frontend-web-external).
+  # Es la unica entrada publica; nginx de frontend-web reenvia al resto.
+  # IMPORTANTE: borrarlo antes de `terraform destroy`:
+  #   kubectl delete svc frontend-web-external
+  externalService: true
