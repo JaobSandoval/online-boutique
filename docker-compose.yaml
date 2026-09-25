@@ -38,12 +38,12 @@ services:
     networks: [boutique]
 
   frontend-web:
+    # Sin build args: los ARG por defecto del Dockerfile (rutas relativas)
+    # ya son correctos aqui tambien — nginx.conf reenvia /api, /account,
+    # /support y /static a los contenedores correspondientes por nombre de
+    # servicio de Compose, igual que hace por DNS de Kubernetes en EKS.
     build:
       context: ./src/frontend-web
-      args:
-        VITE_STORE_API_BASE_URL: "http://localhost:8080/api/v1"
-        VITE_ACCOUNT_API_BASE_URL: "http://localhost:8081"
-        VITE_SUPPORT_API_BASE_URL: "http://localhost:8082"
     depends_on: [frontend, accountservice, supportassistantservice]
     ports:
       - "5173:8080"
