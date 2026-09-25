@@ -150,7 +150,10 @@ spec:
     app: {{ .Values.frontend.name }}
   ports:
   - name: http
-    port: 80
+    # 8080, not 80: matches docker-compose's internal frontend port, so
+    # frontend-web's nginx reverse proxy (nginx.conf) can use the same
+    # upstream address in both local dev and EKS.
+    port: 8080
     targetPort: 8080
 {{- if .Values.frontend.externalService }}
 ---
