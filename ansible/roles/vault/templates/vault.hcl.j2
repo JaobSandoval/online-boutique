@@ -1,0 +1,15 @@
+ui = true
+
+storage "file" {
+  path = "{{ vault_data_dir }}"
+}
+
+listener "tcp" {
+  address       = "0.0.0.0:{{ vault_port }}"
+  tls_cert_file = "{{ vault_tls_dir }}/vault.crt"
+  tls_key_file  = "{{ vault_tls_dir }}/vault.key"
+}
+
+api_addr = "https://{{ vault_public_ip }}:{{ vault_port }}"
+
+

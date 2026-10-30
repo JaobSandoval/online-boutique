@@ -1,0 +1,7 @@
+- name: Servidor de HashiCorp Vault para Online Boutique
+  hosts: vault
+  become: true
+  gather_facts: true
+
+  roles:
+    - vault
