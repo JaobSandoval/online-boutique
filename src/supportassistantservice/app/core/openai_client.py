@@ -7,7 +7,10 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_products",
-            "description": "Busca productos del catálogo de la tienda por descripción en lenguaje natural.",
+            "description": (
+                "Busca productos del catálogo por palabras clave (en español o inglés). Devuelve nombre, "
+                "precio, categorías y enlace. Si no hay resultados, usa list_products."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {"query": {"type": "string", "description": "Descripción de lo que busca el usuario"}},
@@ -18,8 +21,53 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "list_products",
+            "description": (
+                "Lista los productos del catálogo con precio y enlace, opcionalmente filtrados por categoría "
+                "(p. ej. 'cocina', 'ropa', 'accesorios'). Úsalo para sugerir productos o cuando el cliente "
+                "pida ideas, regalos o ver qué hay."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {"category": {"type": "string", "description": "Categoría opcional"}},
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_product_details",
+            "description": "Obtiene el detalle completo (descripción, precio, categorías, enlace) de un producto por su id.",
+            "parameters": {
+                "type": "object",
+                "properties": {"product_id": {"type": "string"}},
+                "required": ["product_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_to_cart",
+            "description": (
+                "Agrega un producto al carrito del cliente. Úsalo SOLO cuando el cliente lo pida explícitamente "
+                "(p. ej. 'agrégalo al carrito')."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "product_id": {"type": "string"},
+                    "quantity": {"type": "integer", "minimum": 1, "maximum": 10, "default": 1},
+                },
+                "required": ["product_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_recommendations",
-            "description": "Obtiene recomendaciones de productos para el usuario.",
+            "description": "Obtiene recomendaciones personalizadas (con nombre, precio y enlace) para el usuario.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -36,7 +84,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_cart",
-            "description": "Consulta el contenido actual del carrito de compras del usuario.",
+            "description": "Consulta el carrito del usuario: productos, cantidades, precios y total.",
             "parameters": {"type": "object", "properties": {}},
         },
     },
@@ -73,14 +121,19 @@ SYSTEM_PROMPT = """Eres el asistente virtual de soporte de Online Boutique, una 
 
 ## Tu ÚNICO alcance
 Solo ayudas con temas de Online Boutique:
-- Buscar productos del catálogo y dar recomendaciones (herramientas search_products y get_recommendations).
-- Consultar el carrito del cliente (get_cart).
+- Buscar y sugerir productos reales del catálogo (search_products, list_products, get_product_details)
+  y dar recomendaciones (get_recommendations).
+- Consultar el carrito del cliente (get_cart) y agregar productos cuando lo pida (add_to_cart).
 - Pedidos, envíos, pagos, devoluciones, cuenta y políticas de la tienda (search_faq).
 - Reportar problemas y abrir tickets de soporte (create_ticket).
 
-El catálogo incluye estas categorías: accesorios (gafas de sol, reloj), ropa (tank top),
-calzado (mocasines), belleza/cabello (secador), hogar/decoración (portavelas) y cocina
-(salero y pimentero, frasco de bambú, taza). Precios en USD.
+## Cómo sugerir productos
+- Sé proactivo: cuando el cliente busque algo, pida ideas o un regalo, sugiere de 1 a 3 productos
+  concretos del catálogo con su nombre, precio en USD y enlace (formato: Nombre — precio USD — /product/<id>),
+  y explica en una frase por qué encaja.
+- Usa solo productos que aparezcan en el catálogo actual o en los resultados de las herramientas.
+  Si no hay nada que encaje, dilo con honestidad y ofrece lo más cercano.
+- Después de sugerir, puedes ofrecer agregarlo al carrito. Agrega solo si el cliente confirma.
 
 ## Reglas estrictas
 1. Si el mensaje NO tiene relación con la tienda (programación, tareas escolares, matemáticas,
@@ -122,8 +175,9 @@ class OpenAIClient:
             self._client = OpenAI(api_key=self._api_key)
         return self._client
 
-    def chat(self, messages: list[dict]) -> "ChatCompletionMessage":
-        full_messages = [{"role": "system", "content": SYSTEM_PROMPT}, *messages]
+    def chat(self, messages: list[dict], context: str | None = None) -> "ChatCompletionMessage":
+        system = SYSTEM_PROMPT if not context else f"{SYSTEM_PROMPT}\n{context}"
+        full_messages = [{"role": "system", "content": system}, *messages]
         response = self.client.chat.completions.create(
             model=self._model,
             messages=full_messages,

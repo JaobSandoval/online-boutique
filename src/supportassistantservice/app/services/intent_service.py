@@ -6,6 +6,9 @@ OFF_TOPIC_INTENT = "off_topic"
 
 TOOL_TO_INTENT = {
     "search_products": "search_product",
+    "list_products": "search_product",
+    "get_product_details": "search_product",
+    "add_to_cart": "cart_status",
     "get_recommendations": "recommendation",
     "get_cart": "cart_status",
     "search_faq": "faq",

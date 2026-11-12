@@ -119,7 +119,7 @@ def _app_lifespan():
 class ExplodingOpenAIClient:
     """Falla si se llama: prueba que lo fuera de alcance nunca llega al LLM."""
 
-    def chat(self, messages):
+    def chat(self, messages, context=None):
         raise AssertionError("El LLM no debería ser llamado para mensajes fuera de alcance")
 
 

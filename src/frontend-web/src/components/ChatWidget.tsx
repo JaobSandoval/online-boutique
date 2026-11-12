@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { getChatHistory, getOrCreateSession, sendChatMessage } from '../api/supportClient'
 import type { ChatMessage } from '../api/types'
 
@@ -54,7 +55,7 @@ export function ChatWidget() {
           <div className="chat-messages">
             {messages.map((m, i) => (
               <div key={i} className={`chat-message chat-message-${m.senderRole}`}>
-                {m.content}
+                {renderWithLinks(m.content)}
               </div>
             ))}
             {sending && <div className="chat-message chat-message-bot">Escribiendo…</div>}
@@ -78,5 +79,21 @@ export function ChatWidget() {
         {open ? 'Cerrar' : '💬 Ayuda'}
       </button>
     </div>
+  )
+}
+
+// El asistente sugiere productos con enlaces internos (/product/<id>, /cart);
+// se convierten en <Link> para navegar sin recargar la página.
+const INTERNAL_LINK = /(\/product\/[A-Za-z0-9]+|\/cart\b)/g
+
+function renderWithLinks(text: string) {
+  return text.split(INTERNAL_LINK).map((part, i) =>
+    i % 2 === 1 ? (
+      <Link key={i} to={part} className="chat-link">
+        {part.startsWith('/cart') ? 'Ver carrito' : 'Ver producto'}
+      </Link>
+    ) : (
+      part
+    )
   )
 }

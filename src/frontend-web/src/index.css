@@ -296,6 +296,13 @@ input {
 .chat-message-bot {
   align-self: flex-start;
   background: #eef1f4;
+  white-space: pre-wrap;
+}
+
+.chat-link {
+  color: var(--brand);
+  font-weight: 600;
+  text-decoration: underline;
 }
 
 .chat-input {

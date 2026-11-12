@@ -209,3 +209,19 @@ Además se amplió la base de FAQ (costos de envío, rastreo, cancelaciones, ree
 cuenta) y la búsqueda ahora ignora acentos y busca en pregunta y respuesta.
 
 Pruebas: `tests/test_scope_guard.py` (mensajes permitidos, bloqueados, injection y casos ambiguos).
+
+## Acceso del asistente al catálogo, recomendaciones y carrito
+
+`SearchProducts` de productcatalogservice solo compara subcadenas en inglés, así que búsquedas en español
+("gafas de sol", "algo para la cocina") no devolvían nada. `CatalogService` (`app/services/catalog_service.py`):
+
+- Trae el catálogo completo con `ListProducts` y lo cachea 5 minutos (conserva la última copia si el servicio cae).
+- Busca localmente traduciendo términos en español a nombres/categorías del catálogo y ordena por relevancia.
+- Inyecta un resumen del catálogo (nombre, id, precio, categorías, enlace) en el prompt, para que el LLM sugiera
+  productos reales directamente.
+
+Herramientas disponibles para el LLM: `search_products`, `list_products` (con filtro de categoría),
+`get_product_details`, `get_recommendations` (ahora con nombre/precio/enlace), `get_cart` (con subtotales y total),
+`add_to_cart` (solo si el cliente lo pide), `search_faq` y `create_ticket`.
+
+El bot devuelve enlaces `/product/<id>` y `/cart`, que el `ChatWidget` muestra como links clicables.
