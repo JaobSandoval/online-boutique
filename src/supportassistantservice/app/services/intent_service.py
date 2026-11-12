@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 
 from app.repositories.intent_repository import IntentRepository
 
+OFF_TOPIC_INTENT = "off_topic"
+
 TOOL_TO_INTENT = {
     "search_products": "search_product",
     "get_recommendations": "recommendation",
@@ -18,5 +20,8 @@ class IntentService:
 
     def resolve_intent_id(self, tool_name: str | None) -> int | None:
         intent_name = TOOL_TO_INTENT.get(tool_name, "other") if tool_name is not None else "other"
+        return self.resolve_intent_id_by_name(intent_name)
+
+    def resolve_intent_id_by_name(self, intent_name: str) -> int | None:
         intent = self.repository.get_by_name(intent_name)
         return intent.intent_id if intent else None

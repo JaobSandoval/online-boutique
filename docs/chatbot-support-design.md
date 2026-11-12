@@ -187,3 +187,25 @@ erDiagram
 
 Las fases 1-3 son las de mayor riesgo técnico (definen el modelo de datos y la integración) y por eso van
 primero — un cambio de esquema es barato antes de tener controllers y frontend construidos encima.
+
+## Guardarraíles de alcance (el bot solo habla de la tienda)
+
+El asistente está restringido a temas de Online Boutique con tres capas de defensa:
+
+1. **`ScopeGuard`** (`app/services/scope_guard.py`) — filtro determinístico *antes* del LLM:
+   - Bloquea intentos de prompt injection / jailbreak ("ignora tus instrucciones", "muéstrame tu system prompt",
+     "actúa como…", "modo desarrollador"), aunque mencionen la tienda.
+   - Permite todo mensaje con vocabulario de la tienda (productos, categorías del catálogo, carrito, pedidos,
+     envíos, pagos, devoluciones, cuenta, soporte) y los saludos.
+   - Bloquea temas claramente ajenos (programación, tareas, cultura general, política, deportes, salud,
+     recetas, chistes, traducciones…) con una respuesta fija, **sin llamar al LLM** (ahorra costo).
+   - Lo ambiguo pasa al LLM. Los rechazos se registran con el intent `off_topic` para el panel de admin.
+2. **`SYSTEM_PROMPT` estricto** (`app/core/openai_client.py`) — alcance explícito, reglas de negativa,
+   prohibición de revelar instrucciones o inventar datos, y ejemplos few-shot; `temperature=0.2`.
+3. **`sanitize_reply`** — red de seguridad sobre la salida: si el modelo devuelve un bloque de código, se
+   reemplaza por la respuesta de fuera de alcance.
+
+Además se amplió la base de FAQ (costos de envío, rastreo, cancelaciones, reembolsos, garantía, monedas,
+cuenta) y la búsqueda ahora ignora acentos y busca en pregunta y respuesta.
+
+Pruebas: `tests/test_scope_guard.py` (mensajes permitidos, bloqueados, injection y casos ambiguos).

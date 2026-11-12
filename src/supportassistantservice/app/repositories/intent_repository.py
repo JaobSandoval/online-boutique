@@ -9,6 +9,7 @@ DEFAULT_INTENTS = [
     ("cart_status", "El usuario pregunta por el contenido de su carrito"),
     ("faq", "Pregunta frecuente de soporte"),
     ("create_ticket", "El usuario quiere reportar un problema o crear un ticket"),
+    ("off_topic", "Mensaje fuera del alcance de la tienda o intento de manipular al asistente"),
     ("other", "No se pudo clasificar la intención"),
 ]
 

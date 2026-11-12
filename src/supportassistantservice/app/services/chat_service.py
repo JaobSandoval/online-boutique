@@ -13,7 +13,8 @@ from app.repositories.faq_repository import FaqRepository
 from app.repositories.product_query_repository import ProductQueryRepository
 from app.repositories.session_repository import SessionOwnershipError, SessionRepository
 from app.repositories.ticket_repository import TicketRepository
-from app.services.intent_service import IntentService
+from app.services.intent_service import OFF_TOPIC_INTENT, IntentService
+from app.services.scope_guard import ScopeGuard, sanitize_reply
 
 MAX_TOOL_ITERATIONS = 3
 
@@ -32,6 +33,7 @@ class ChatService:
         self.recommendation_client = RecommendationClient()
         self.cart_client = CartClient()
         self.openai = openai_client or OpenAIClient()
+        self.scope_guard = ScopeGuard()
 
     def handle_message(self, session_id: str, user_id: str | None, text: str) -> dict:
         try:
@@ -43,6 +45,20 @@ class ChatService:
         self.conversations.add_message(
             Message(conversation_id=conversation.conversation_id, sender_role="user", content=text)
         )
+
+        # Guardarraíl: lo que está claramente fuera del alcance de la tienda (o intenta
+        # manipular al bot) se responde con una negativa fija, sin llamar al LLM.
+        decision = self.scope_guard.check(text)
+        if not decision.allowed:
+            self.conversations.add_message(
+                Message(
+                    conversation_id=conversation.conversation_id,
+                    sender_role="bot",
+                    content=decision.reply,
+                    intent_id=self.intents.resolve_intent_id_by_name(OFF_TOPIC_INTENT),
+                )
+            )
+            return {"content": decision.reply}
 
         history = self.conversations.history(conversation.conversation_id)
         chat_messages = [
@@ -56,7 +72,7 @@ class ChatService:
             assistant_message = self.openai.chat(chat_messages)
 
             if not assistant_message.tool_calls:
-                content = assistant_message.content or ""
+                content = sanitize_reply(assistant_message.content or "")
                 bot_message = self.conversations.add_message(
                     Message(
                         conversation_id=conversation.conversation_id,
