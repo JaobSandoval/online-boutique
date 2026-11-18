@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getChatHistory, getOrCreateSession, sendChatMessage } from '../api/supportClient'
 import type { ChatMessage } from '../api/types'
-import { ChatIcon, CloseIcon } from './Icons'
 
 export function ChatWidget() {
   const [open, setOpen] = useState(false)
@@ -50,13 +49,8 @@ export function ChatWidget() {
       {open && (
         <div className="chat-panel">
           <div className="chat-header">
-            <div>
-              <strong>Asistente Online Boutique</strong>
-              <span className="chat-subtitle">Te ayudo a encontrar productos y resolver dudas</span>
-            </div>
-            <button onClick={() => setOpen(false)} aria-label="Cerrar chat">
-              <CloseIcon size={18} />
-            </button>
+            <span>Soporte Online Boutique</span>
+            <button onClick={() => setOpen(false)}>×</button>
           </div>
           <div className="chat-messages">
             {messages.map((m, i) => (
@@ -81,9 +75,8 @@ export function ChatWidget() {
           </div>
         </div>
       )}
-      <button className="chat-toggle" onClick={() => setOpen((v) => !v)} aria-label={open ? 'Cerrar ayuda' : 'Abrir ayuda'}>
-        {open ? <CloseIcon size={20} /> : <ChatIcon size={20} />}
-        <span>{open ? 'Cerrar' : 'Ayuda'}</span>
+      <button className="chat-toggle" onClick={() => setOpen((v) => !v)}>
+        {open ? 'Cerrar' : '💬 Ayuda'}
       </button>
     </div>
   )

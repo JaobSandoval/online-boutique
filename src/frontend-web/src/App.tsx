@@ -1,10 +1,9 @@
 import { Route, Routes } from 'react-router-dom'
-import { CartDrawer } from './components/CartDrawer'
 import { ChatWidget } from './components/ChatWidget'
-import { Footer } from './components/Footer'
 import { GuestOnly, RequireAuth, RequireRole } from './components/RequireAuth'
 import { Navbar } from './components/Navbar'
 import { useAuth } from './context/AuthContext'
+import { useStore } from './context/StoreContext'
 import { Admin } from './pages/Admin'
 import { Cart } from './pages/Cart'
 import { Checkout } from './pages/Checkout'
@@ -20,6 +19,20 @@ function RootRoute() {
   const { user, loading } = useAuth()
   if (loading) return <p className="status-message">Cargando…</p>
   return user ? <Home /> : <Welcome />
+}
+
+// Detalles del despliegue (cluster/zona/pod), como el footer de la tienda Go original.
+function DeploymentFooter() {
+  const { info } = useStore()
+  const d = info?.deployment
+  if (!d || !(d.clustername || d.zone || d.hostname)) return null
+  return (
+    <footer className="deployment-footer">
+      {d.clustername && <span>Cluster: {d.clustername}</span>}
+      {d.zone && <span>Zona: {d.zone}</span>}
+      {d.hostname && <span>Pod: {d.hostname}</span>}
+    </footer>
+  )
 }
 
 function App() {
@@ -45,8 +58,7 @@ function App() {
           </Route>
         </Routes>
       </main>
-      <Footer />
-      {user && <CartDrawer />}
+      {user && <DeploymentFooter />}
       {user && <ChatWidget />}
     </>
   )
