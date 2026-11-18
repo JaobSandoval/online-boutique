@@ -1,11 +1,22 @@
 import axios from 'axios'
 import { attachAuthInterceptors } from './authRefresh'
-import type { CartItem, Product } from './types'
+import type { Ad, CartItem, CartQuote, OrderResult, Product, StoreInfo } from './types'
 
 const baseURL = import.meta.env.VITE_STORE_API_BASE_URL
 
 export const storeClient = axios.create({ baseURL, withCredentials: true })
 attachAuthInterceptors(storeClient)
+
+// Moneda elegida por el usuario: se manda como ?currency= en cada petición
+// y el backend devuelve los precios ya convertidos por currencyservice.
+let currentCurrency = 'USD'
+export function setStoreCurrency(code: string) {
+  currentCurrency = code
+}
+storeClient.interceptors.request.use((config) => {
+  config.params = { currency: currentCurrency, ...config.params }
+  return config
+})
 
 export async function listProducts(): Promise<Product[]> {
   const { data } = await storeClient.get<Product[]>('/products')
@@ -56,7 +67,22 @@ export interface CheckoutPayload {
   currency: string
 }
 
-export async function checkout(payload: CheckoutPayload): Promise<{ orderId: string }> {
-  const { data } = await storeClient.post<{ orderId: string }>('/checkout', payload)
+export async function checkout(payload: CheckoutPayload): Promise<OrderResult> {
+  const { data } = await storeClient.post<OrderResult>('/checkout', payload)
+  return data
+}
+
+export async function getCartQuote(): Promise<CartQuote> {
+  const { data } = await storeClient.get<CartQuote>('/cart/quote')
+  return data
+}
+
+export async function getAd(categories: string[] = []): Promise<Ad | null> {
+  const res = await storeClient.get<Ad>('/ads', { params: { categories: categories.join(',') } })
+  return res.status === 204 || !res.data ? null : res.data
+}
+
+export async function getStoreInfo(): Promise<StoreInfo> {
+  const { data } = await storeClient.get<StoreInfo>('/store-info')
   return data
 }

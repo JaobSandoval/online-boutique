@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"strings"
 
@@ -10,6 +12,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	pb "github.com/GoogleCloudPlatform/microservices-demo/src/frontend/genproto"
+	"github.com/GoogleCloudPlatform/microservices-demo/src/frontend/money"
+	"github.com/GoogleCloudPlatform/microservices-demo/src/frontend/validator"
 )
 
 // apiMoney/apiProduct/apiCartItem are plain JSON-friendly views over the gRPC
@@ -26,7 +30,12 @@ type apiProduct struct {
 	Description string   `json:"description"`
 	Picture     string   `json:"picture"`
 	PriceUSD    apiMoney `json:"priceUsd"`
-	Categories  []string `json:"categories"`
+	// Price is PriceUSD converted to the currency requested with ?currency=
+	// (currencyservice), the same conversion the original Go storefront did
+	// on every page. Omitted when the conversion fails, so clients fall back
+	// to priceUsd instead of breaking.
+	Price      *apiMoney `json:"price,omitempty"`
+	Categories []string  `json:"categories"`
 }
 
 type apiCartItem struct {
@@ -53,6 +62,27 @@ func toApiProduct(p *pb.Product) apiProduct {
 		PriceUSD:    toApiMoney(p.GetPriceUsd()),
 		Categories:  p.GetCategories(),
 	}
+}
+
+// apiCurrency returns the ?currency= query param if it is one of the
+// currencies the store supports, else the default (USD) — mirrors
+// currentCurrency() for the cookie-based HTML storefront.
+func apiCurrency(r *http.Request) string {
+	c := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("currency")))
+	if whitelistedCurrencies[c] {
+		return c
+	}
+	return defaultCurrency
+}
+
+// toApiProductIn is toApiProduct plus the price converted to currency.
+func (fe *frontendServer) toApiProductIn(ctx context.Context, p *pb.Product, currency string) apiProduct {
+	out := toApiProduct(p)
+	if price, err := fe.convertCurrency(ctx, p.GetPriceUsd(), currency); err == nil {
+		m := toApiMoney(price)
+		out.Price = &m
+	}
+	return out
 }
 
 // resolveUserID prefers the authenticated user (Bearer JWT, validated
@@ -131,9 +161,10 @@ func (fe *frontendServer) apiListProducts(w http.ResponseWriter, r *http.Request
 		writeAPIError(w, http.StatusInternalServerError, "could not retrieve products")
 		return
 	}
+	currency := apiCurrency(r)
 	out := make([]apiProduct, len(products))
 	for i, p := range products {
-		out[i] = toApiProduct(p)
+		out[i] = fe.toApiProductIn(r.Context(), p, currency)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -145,7 +176,7 @@ func (fe *frontendServer) apiGetProduct(w http.ResponseWriter, r *http.Request) 
 		writeAPIError(w, http.StatusNotFound, "product not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, toApiProduct(p))
+	writeJSON(w, http.StatusOK, fe.toApiProductIn(r.Context(), p, apiCurrency(r)))
 }
 
 func (fe *frontendServer) apiGetCart(w http.ResponseWriter, r *http.Request) {
@@ -168,8 +199,13 @@ func (fe *frontendServer) apiAddToCart(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if payload.ProductID == "" || payload.Quantity <= 0 {
-		writeAPIError(w, http.StatusUnprocessableEntity, "productId and a positive quantity are required")
+	if payload.Quantity <= 0 {
+		writeAPIError(w, http.StatusUnprocessableEntity, "productId and a quantity between 1 and 10 are required")
+		return
+	}
+	check := validator.AddToCartPayload{Quantity: uint64(payload.Quantity), ProductID: payload.ProductID}
+	if err := check.Validate(); err != nil {
+		writeAPIError(w, http.StatusUnprocessableEntity, "productId and a quantity between 1 and 10 are required")
 		return
 	}
 	userID := resolveUserID(fe, r)
@@ -209,9 +245,10 @@ func (fe *frontendServer) apiRecommendations(w http.ResponseWriter, r *http.Requ
 		writeAPIError(w, http.StatusInternalServerError, "could not retrieve recommendations")
 		return
 	}
+	currency := apiCurrency(r)
 	out := make([]apiProduct, len(products))
 	for i, p := range products {
-		out[i] = toApiProduct(p)
+		out[i] = fe.toApiProductIn(r.Context(), p, currency)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -238,9 +275,28 @@ func (fe *frontendServer) apiCheckout(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	currency := payload.Currency
-	if currency == "" {
+	currency := strings.ToUpper(payload.Currency)
+	if !whitelistedCurrencies[currency] {
 		currency = defaultCurrency
+	}
+
+	// Same server-side validation as the original HTML checkout
+	// (placeOrderHandler): never trust the browser's form checks alone.
+	check := validator.PlaceOrderPayload{
+		Email:         payload.Email,
+		StreetAddress: payload.StreetAddress,
+		ZipCode:       int64(payload.ZipCode),
+		City:          payload.City,
+		State:         payload.State,
+		Country:       payload.Country,
+		CcNumber:      payload.CreditCardNumber,
+		CcMonth:       int64(payload.CreditCardExpirationMonth),
+		CcYear:        int64(payload.CreditCardExpirationYear),
+		CcCVV:         int64(payload.CreditCardCvv),
+	}
+	if err := check.Validate(); err != nil {
+		writeAPIError(w, http.StatusUnprocessableEntity, strings.TrimSpace(validator.ValidationErrorResponse(err).Error()))
+		return
 	}
 
 	userID := resolveUserID(fe, r)
@@ -267,5 +323,135 @@ func (fe *frontendServer) apiCheckout(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusInternalServerError, "failed to complete the order")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"orderId": order.GetOrder().GetOrderId()})
+	o := order.GetOrder()
+	log.WithField("order", o.GetOrderId()).Info("order placed")
+
+	// Same "Total Paid" math as the original order confirmation page.
+	totalPaid := *o.GetShippingCost()
+	items := make([]apiOrderItem, 0, len(o.GetItems()))
+	for _, v := range o.GetItems() {
+		line := money.MultiplySlow(*v.GetCost(), uint32(v.GetItem().GetQuantity()))
+		totalPaid = money.Must(money.Sum(totalPaid, line))
+		items = append(items, apiOrderItem{
+			ProductID: v.GetItem().GetProductId(),
+			Quantity:  v.GetItem().GetQuantity(),
+			UnitPrice: toApiMoney(v.GetCost()),
+			LineTotal: toApiMoney(&line),
+		})
+	}
+	writeJSON(w, http.StatusOK, apiOrderResponse{
+		OrderID:            o.GetOrderId(),
+		ShippingTrackingID: o.GetShippingTrackingId(),
+		ShippingCost:       toApiMoney(o.GetShippingCost()),
+		TotalPaid:          toApiMoney(&totalPaid),
+		Items:              items,
+	})
+}
+
+type apiOrderItem struct {
+	ProductID string   `json:"productId"`
+	Quantity  int32    `json:"quantity"`
+	UnitPrice apiMoney `json:"unitPrice"`
+	LineTotal apiMoney `json:"lineTotal"`
+}
+
+type apiOrderResponse struct {
+	OrderID            string         `json:"orderId"`
+	ShippingTrackingID string         `json:"shippingTrackingId"`
+	ShippingCost       apiMoney       `json:"shippingCost"`
+	TotalPaid          apiMoney       `json:"totalPaid"`
+	Items              []apiOrderItem `json:"items"`
+}
+
+type apiCartQuote struct {
+	Currency     string         `json:"currency"`
+	Items        []apiOrderItem `json:"items"`
+	Subtotal     apiMoney       `json:"subtotal"`
+	ShippingCost apiMoney       `json:"shippingCost"`
+	Total        apiMoney       `json:"total"`
+}
+
+// apiCartQuote prices the user's cart in the requested currency and asks
+// shippingservice for a shipping estimate — what the original cart page
+// showed as "Shipping" and "Total".
+func (fe *frontendServer) apiCartQuote(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	currency := apiCurrency(r)
+	cart, err := fe.getCart(ctx, resolveUserID(fe, r))
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, "could not retrieve cart")
+		return
+	}
+	shipping := pb.Money{CurrencyCode: currency}
+	if len(cart) > 0 {
+		quote, err := fe.getShippingQuote(ctx, cart, currency)
+		if err != nil {
+			writeAPIError(w, http.StatusInternalServerError, "failed to get shipping quote")
+			return
+		}
+		shipping = *quote
+	}
+	subtotal := pb.Money{CurrencyCode: currency}
+	items := make([]apiOrderItem, 0, len(cart))
+	for _, it := range cart {
+		p, err := fe.getProduct(ctx, it.GetProductId())
+		if err != nil {
+			writeAPIError(w, http.StatusInternalServerError, "could not retrieve product "+it.GetProductId())
+			return
+		}
+		price, err := fe.convertCurrency(ctx, p.GetPriceUsd(), currency)
+		if err != nil {
+			writeAPIError(w, http.StatusInternalServerError, "failed to convert currency")
+			return
+		}
+		line := money.MultiplySlow(*price, uint32(it.GetQuantity()))
+		subtotal = money.Must(money.Sum(subtotal, line))
+		items = append(items, apiOrderItem{
+			ProductID: it.GetProductId(),
+			Quantity:  it.GetQuantity(),
+			UnitPrice: toApiMoney(price),
+			LineTotal: toApiMoney(&line),
+		})
+	}
+	total := money.Must(money.Sum(subtotal, shipping))
+	writeJSON(w, http.StatusOK, apiCartQuote{
+		Currency:     currency,
+		Items:        items,
+		Subtotal:     toApiMoney(&subtotal),
+		ShippingCost: toApiMoney(&shipping),
+		Total:        toApiMoney(&total),
+	})
+}
+
+// apiAd returns one contextual text ad from adservice (as the original
+// product page did), or 204 when adservice has nothing or is unavailable —
+// ads are never critical to the page.
+func (fe *frontendServer) apiAd(w http.ResponseWriter, r *http.Request) {
+	var keys []string
+	if raw := r.URL.Query().Get("categories"); raw != "" {
+		keys = strings.Split(raw, ",")
+	}
+	ads, err := fe.getAd(r.Context(), keys)
+	if err != nil || len(ads) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	ad := ads[rand.Intn(len(ads))]
+	writeJSON(w, http.StatusOK, map[string]string{"redirectUrl": ad.GetRedirectUrl(), "text": ad.GetText()})
+}
+
+// apiStoreInfo exposes what the original header/footer showed: the
+// FRONTEND_MESSAGE banner and the deployment details (cluster/zone/pod).
+func (fe *frontendServer) apiStoreInfo(w http.ResponseWriter, r *http.Request) {
+	deployment := map[string]string{}
+	for k, v := range deploymentDetailsMap {
+		if v != "" {
+			deployment[strings.ToLower(k)] = v
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"message":         frontendMessage,
+		"defaultCurrency": defaultCurrency,
+		"deployment":      deployment,
+	})
 }

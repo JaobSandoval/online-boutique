@@ -178,6 +178,9 @@ func main() {
 	api.HandleFunc("/cart/empty", svc.apiEmptyCart).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/checkout", svc.apiCheckout).Methods(http.MethodPost, http.MethodOptions)
 	api.HandleFunc("/currencies", svc.apiCurrencies).Methods(http.MethodGet, http.MethodOptions)
+	api.HandleFunc("/cart/quote", svc.apiCartQuote).Methods(http.MethodGet, http.MethodOptions)
+	api.HandleFunc("/ads", svc.apiAd).Methods(http.MethodGet, http.MethodOptions)
+	api.HandleFunc("/store-info", svc.apiStoreInfo).Methods(http.MethodGet, http.MethodOptions)
 
 	var handler http.Handler = r
 	handler = &logHandler{log: log, next: handler}     // add logging

@@ -1,5 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
+import { CartDrawer } from './components/CartDrawer'
 import { ChatWidget } from './components/ChatWidget'
+import { Footer } from './components/Footer'
 import { GuestOnly, RequireAuth, RequireRole } from './components/RequireAuth'
 import { Navbar } from './components/Navbar'
 import { useAuth } from './context/AuthContext'
@@ -43,6 +45,8 @@ function App() {
           </Route>
         </Routes>
       </main>
+      <Footer />
+      {user && <CartDrawer />}
       {user && <ChatWidget />}
     </>
   )
